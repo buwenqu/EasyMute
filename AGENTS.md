@@ -42,21 +42,21 @@
 
 ## 核心文件与职责
 
-| 文件 | 职责 |
-| --- | --- |
-| `src/main.cpp` | 入口：`CoInitializeEx(MTA)`、单实例互斥、消息循环 |
-| `src/App.*` | 应用控制器：初始化、托盘菜单、`WM_HOTKEY` 分发、设置联动、提示 |
-| `src/AppResolver.*` | 前台窗口 → PID → 进程路径 + 父链 + 全子进程集合（含 UWP 宿主处理） |
-| `src/AudioSession.*` | WASAPI 会话枚举 / 匹配 / 静音切换；`selftest list` 的数据来源 |
-| `src/HotkeyManager.*` | `RegisterHotKey` 封装（先验证、再替换；ID 用 0x0E45 / 0x0E46） |
-| `src/HotkeyName.*` | 快捷键格式化、合法性校验、单键白名单 |
-| `src/HotkeyBox.*` | 设置窗口的快捷键录入控件（自绘、自管焦点与按键捕获） |
-| `src/SettingsDialog.*` | 设置窗口（对话框资源 + 代码设文案） |
-| `src/TrayIcon.*` | `Shell_NotifyIcon` 封装、气泡、`TaskbarCreated` 恢复 |
-| `src/Config.*` / `src/AutoStart.*` | INI 配置（`%APPDATA%\EasyMute\config.ini`）/ HKCU Run 自启 |
-| `src/DebugLog.h` | 环境变量开关的调试日志（仅 `EASYMUTE_DEBUG=1` 时生效） |
-| `res/EasyMute.rc`、`res/app.manifest`、`res/app.ico` | 对话框模板、清单（PMv2 DPI / asInvoker / v6 控件）、图标 |
-| `tools/selftest.cpp`、`tools/soundstub.cpp`、`tools/make_icon.ps1` | 自检工具 / 测试桩 / 图标生成 |
+| 文件                                                               | 职责                                                               |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `src/main.cpp`                                                     | 入口：`CoInitializeEx(MTA)`、单实例互斥、消息循环                  |
+| `src/App.*`                                                        | 应用控制器：初始化、托盘菜单、`WM_HOTKEY` 分发、设置联动、提示     |
+| `src/AppResolver.*`                                                | 前台窗口 → PID → 进程路径 + 父链 + 全子进程集合（含 UWP 宿主处理） |
+| `src/AudioSession.*`                                               | WASAPI 会话枚举 / 匹配 / 静音切换；`selftest list` 的数据来源      |
+| `src/HotkeyManager.*`                                              | `RegisterHotKey` 封装（先验证、再替换；ID 用 0x0E45 / 0x0E46）     |
+| `src/HotkeyName.*`                                                 | 快捷键格式化、合法性校验、单键白名单                               |
+| `src/HotkeyBox.*`                                                  | 设置窗口的快捷键录入控件（自绘、自管焦点与按键捕获）               |
+| `src/SettingsDialog.*`                                             | 设置窗口（对话框资源 + 代码设文案）                                |
+| `src/TrayIcon.*`                                                   | `Shell_NotifyIcon` 封装、气泡、`TaskbarCreated` 恢复               |
+| `src/Config.*` / `src/AutoStart.*`                                 | INI 配置（`%APPDATA%\EasyMute\config.ini`）/ HKCU Run 自启         |
+| `src/DebugLog.h`                                                   | 环境变量开关的调试日志（仅 `EASYMUTE_DEBUG=1` 时生效）             |
+| `res/EasyMute.rc`、`res/app.manifest`、`res/app.ico`               | 对话框模板、清单（PMv2 DPI / asInvoker / v6 控件）、图标           |
+| `tools/selftest.cpp`、`tools/soundstub.cpp`、`tools/make_icon.ps1` | 自检工具 / 测试桩 / 图标生成                                       |
 
 ## 架构约定（重要）
 
@@ -73,12 +73,13 @@
 8. **托盘**：回调消息 `WM_APP+1`；右键菜单先 `SetForegroundWindow` 再 `TrackPopupMenu`；处理 `TaskbarCreated` 重挂图标。
 9. **配置**：INI（`GetPrivateProfile*` 系列 API）；界面修改即时保存；启动时若自启开启则刷新注册表路径（路径自愈）。
 10. **文案与编码**：资源脚本纯 ASCII；代码内中文用 `L"..."`；MinGW 宽字符 printf 输出宽字符串必须用 `%ls`（`%s` 是窄字符串语义）。
+11. **气泡提示策略（2026-09-12 需求变更）**：仅当静音状态**真正发生切换**时提示一次（"已静音 / 已恢复"）；无音频会话、桌面焦点、解析失败、音频错误等场景**一律静默**（只写调试日志）。提示受设置开关控制（默认开启），并有 300ms 同文本防抖（防重复触发刷屏）。
 
 ## 已知坑（务必避免）
 
 1. **窗口创建期不能用成员 hwnd**（真实踩坑）：`App::HandleMessage` 早期版本用成员 `hwnd_` 调 `DefWindowProc`，导致 `WM_NCCREATE` 被错误处理、`CreateWindowExW` 直接失败（现象：进程活着但无托盘、无热键、卡在报错框）。→ 一律透传回调的 `hwnd`。
 2. **快捷键"永远被占用"**（真实踩坑）：`HotkeyBox` 曾只发通知不存候选值，父窗口读到旧键 → 每次改键都在注册旧键 → 任何键都提示"被占用"。→ 先存 pending 再通知（架构约定 3）。
-3. **windres 的样式宏**：`res/EasyMute.rc` 必须 `#include <windows.h>`（RC_INVOKED 下仅提供 `WS_*/DS_*` 宏），否则报 `syntax error`；rc 内不要写中文（按 ANSI/GBK 解析会乱码甚至词法错乱）。
+3. **windres 的样式宏**：`res/EasyMute.rc` 必须 `#include <windows.h>`（RC*INVOKED 下仅提供 `WS*_/DS\__`宏），否则报`syntax error`；rc 内不要写中文（按 ANSI/GBK 解析会乱码甚至词法错乱）。
 4. **MinGW 默认 manifest 冲突**：GCC 自动附加 `default-manifest.o`，与 `RT_MANIFEST` 冲突（`multiple non-default manifests`）。CMake 已用「生成空 `default-manifest.o` + `-B` 指向空目录」解决，**不要删除该段逻辑**；若构建日志再现该警告，说明覆盖失效，需立即排查。
 5. **`RegisterHotKey` 的 ID 范围**：使用 `0x0000–0xBFFF`（当前 0x0E45 / 0x0E46）；`0xC000–0xFFFF` 为 GlobalAddAtom 保留区间。
 6. **MinGW `%s` / `%ls`**：宽 printf 中 `%ls` 才是宽字符串；数字格式（`%u` `%zu`）正常。
@@ -100,4 +101,5 @@
 
 - **2026-09-11 初版创建**：汇总 v1.0.0 开发全程经验。当天两个最大的坑：「窗口创建期使用成员 hwnd 导致创建失败」与「录入控件未保存候选值导致改键永远提示被占用」（均已修复，见"已知坑"1/2）。
 - **2026-09-11 需求变更**：设置快捷键不再提示 / 拦截"被占用"，直接接受任意合法组合（注册失败则保留旧键可用，托盘提示标注"未生效"）。连带调整：启动时不再弹"注册失败"气泡；`HKM_REJECT` 废弃。
+- **2026-09-12 气泡策略修复**：现象——日常误触快捷键时气泡"一直不断弹出"（无音频会话 / 桌面焦点等未切换场景也在弹，且强制显示、无视设置）。根因——通知策略未区分"是否真正切换静音"。修复——仅切换成功时提示一次 + 300ms 同文本防抖 + 全部非切换场景静默；设置开关更名为"静音/恢复时显示气泡提示"（默认开启）。
 - （后续新经验请在此追加：日期 + 现象 + 根因 + 结论）

@@ -31,7 +31,7 @@ public:
 
     void OpenSettings();
     void ToggleForegroundAppMute();
-    void Notify(const std::wstring& text, bool showAlways, bool isError = false);
+    void Notify(const std::wstring& text);  // 仅“静音状态真正切换”时调用，受设置开关控制
 
 private:
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp);

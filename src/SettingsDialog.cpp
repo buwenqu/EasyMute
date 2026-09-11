@@ -48,7 +48,7 @@ INT_PTR CALLBACK DialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
             SetDlgItemTextW(dlg, IDC_STATIC_HKLABEL, L"静音快捷键");
             SetDlgItemTextW(dlg, IDC_BTN_DEFAULT, L"恢复默认");
             SetDlgItemTextW(dlg, IDC_CHK_AUTOSTART, L"开机自动启动");
-            SetDlgItemTextW(dlg, IDC_CHK_NOTIFY, L"操作后显示气泡提示");
+            SetDlgItemTextW(dlg, IDC_CHK_NOTIFY, L"静音/恢复时显示气泡提示");
             SetDlgItemTextW(dlg, IDC_STATIC_VERSION, kVersionText);
             SetDlgItemTextW(dlg, IDC_BTN_CLOSE, L"关闭");
 

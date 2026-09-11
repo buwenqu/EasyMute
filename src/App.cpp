@@ -97,6 +97,7 @@ LRESULT CALLBACK App::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 // 窗口创建期间（WM_NCCREATE/WM_CREATE）成员尚未赋值，用 nullptr 兜底会导致创建失败。
 LRESULT App::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_HOTKEY) {
+        DebugLog(L"[app] WM_HOTKEY (id=%u)\n", static_cast<unsigned>(wp));
         ToggleForegroundAppMute();
         return 0;
     }
@@ -122,31 +123,42 @@ LRESULT App::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 void App::ToggleForegroundAppMute() {
     FocusAppInfo info;
     if (!ResolveFocusApp(info)) {
-        Notify(L"未能识别当前焦点窗口所属的应用", true, true);
+        DebugLog(L"[app] toggle: 无法解析前台窗口\n");
         return;
     }
     if (CompareStringOrdinal(info.exeName.c_str(), -1, L"explorer.exe", -1, TRUE) == CSTR_EQUAL) {
-        Notify(L"当前焦点是桌面 / 资源管理器，未执行静音操作", true, false);
+        DebugLog(L"[app] toggle: 焦点是桌面 / 资源管理器，忽略\n");
         return;
     }
 
     bool nowMuted = false;
     switch (ToggleAppMute(info.relatedPids, info.exePath, nowMuted)) {
         case MuteToggleResult::Ok:
-            Notify((nowMuted ? L"已静音：" : L"已恢复：") + info.exeName, false, false);
+            // 需求（2026-09-12 变更）：仅在静音状态真正切换时提示一次
+            Notify((nowMuted ? L"已静音：" : L"已恢复：") + info.exeName);
             break;
         case MuteToggleResult::NoSession:
-            Notify(L"当前应用没有音频输出：" + info.exeName, true, false);
+            DebugLog(L"[app] toggle: 无音频会话（%ls）\n", info.exeName.c_str());
             break;
         case MuteToggleResult::Error:
-            Notify(L"静音操作失败（音频系统异常）", true, true);
+            DebugLog(L"[app] toggle: 音频系统错误\n");
             break;
     }
 }
 
-void App::Notify(const std::wstring& text, bool showAlways, bool isError) {
-    if (!showAlways && !config_.showNotification) return;
-    tray_.ShowBalloon(L"EasyMute", text, isError);
+void App::Notify(const std::wstring& text) {
+    if (!config_.showNotification) return;  // 设置开关（默认开启)
+
+    // 防抖：同一文本 300ms 内只提示一次，避免重复触发造成刷屏
+    static DWORD lastTick = 0;
+    static std::wstring lastText;
+    const DWORD now = GetTickCount();
+    if (text == lastText && now - lastTick < 300) return;
+    lastText = text;
+    lastTick = now;
+
+    DebugLog(L"[app] balloon: %ls\n", text.c_str());
+    tray_.ShowBalloon(L"EasyMute", text, false);
 }
 
 void App::OnTrayMessage(LPARAM lp) {
