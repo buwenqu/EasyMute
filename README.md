@@ -133,7 +133,7 @@ EasyMute/
 ## 🔍 技术要点
 
 - **按应用静音**：`IMMDeviceEnumerator → IAudioSessionManager2 → IAudioSessionControl2 / ISimpleAudioVolume`；会话按「PID ∈ 进程树 ∪ 同可执行文件路径」匹配，覆盖浏览器多进程、Electron 子进程、UWP 宿主等场景；多会话统一取反，保证“要么全静、要么全响”；
-- **全局热键**：`RegisterHotKey` + `MOD_NOREPEAT`（防长按连发）；设置时直接接受任意合法组合（不拦截"被占用"），注册失败则保留旧键可用并在托盘提示标注"（未生效）"；
+- **全局热键**：`RegisterHotKey` + `MOD_NOREPEAT`（防长按连发）；设置时直接接受任意合法组合（不拦截、不检测"被占用"），注册完全静默：失败时保留旧键可用，界面不提示；
 - **托盘图标**：`Shell_NotifyIcon`；处理 `TaskbarCreated`，资源管理器重启后自动恢复；
 - **零打扰**：无后台轮询、无常驻线程、不注入、不挂钩子、不联网。
 
@@ -149,7 +149,7 @@ EasyMute/
 
 - 设环境变量 `EASYMUTE_DEBUG=1` 后运行，调试日志写入 `%TEMP%\easymute_debug.log`；
 - `tools/` 下的 `easymute_selftest.exe`（`list` / `<pid>`）与 `easymute_soundstub.exe` 可用于验证核心链路；
-- 快捷键无效：组合可能被其他软件占用——此时托盘提示会显示"（未生效）"，在设置窗口换一个组合即可；录入时直接按“当前正在使用的快捷键”不会没反应，会正常回显并结束采集。
+- 快捷键无效：组合可能被其他软件占用——程序不显示占用状态，在设置窗口换一个组合重新录入即可；录入时直接按“当前正在使用的快捷键”不会没反应，会正常回显并结束采集。
 
 ## �🗺 Roadmap
 

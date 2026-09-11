@@ -14,7 +14,6 @@ struct BoxData {
     unsigned pendingMods = 0;  // 刚捕获、等待父窗口确认的候选组合
     unsigned pendingVk = 0;
     bool hasPending = false;
-    bool effective = true;  // 显示的组合是否已实际注册生效（false 时标注“（未生效）”）
     bool capturing = false;
     HFONT font = nullptr;
     std::wstring hint;  // 录入过程中的提示文字（占位 / 错误）
@@ -71,12 +70,8 @@ void PaintBox(HWND hwnd, BoxData* data) {
         color = data->hintError ? RGB(0xD9, 0x30, 0x25) : RGB(0x8A, 0x8A, 0x8A);
         text = data->hint.empty() ? L"请按下新快捷键…" : data->hint;
     } else {
+        // 需求（2026-09-12 变更）：只如实展示用户设置的组合，不标注注册结果
         text = FormatHotkey(data->mods, data->vk);
-        if (!data->effective) {
-            // 组合未能实际注册（被其他程序占用等）：如实标注，避免“假成功”
-            text += L"（未生效）";
-            color = RGB(0xD9, 0x30, 0x25);
-        }
     }
 
     HFONT oldFont = nullptr;
@@ -179,7 +174,6 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!data) return 0;
             data->mods = (static_cast<unsigned>(wp) >> 16) & 0xFFFFu;
             data->vk = static_cast<unsigned>(wp) & 0xFFFFu;
-            data->effective = lp != 0;
             data->hasPending = false;
             data->capturing = false;
             data->hint.clear();

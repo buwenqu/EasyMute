@@ -2,7 +2,8 @@
 
 #include <windows.h>
 
-// 全局热键管理：先验证新组合可用，成功后才替换旧键；失败时保留旧键
+// 全局热键管理：尽力注册用户选择的组合；注册失败时静默保留旧键
+// （需求 2026-09-12：不做占用检测、不向用户报告注册结果）
 class HotkeyManager {
 public:
     ~HotkeyManager() { Unregister(); }

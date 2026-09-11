@@ -63,8 +63,8 @@ bool App::Init(HINSTANCE instance) {
     tray_.Add(hwnd_, icon, L"EasyMute");
     UpdateTrayTip();
 
-    // 需求（2026-09-11 变更）：启动注册失败不再弹“被占用”气泡,
-    // 注册状态通过托盘提示（“未生效”）被动呈现。
+    // 需求（2026-09-12 变更）：热键注册完全静默——不做占用检测、不向用户提示结果；
+    // 失败时静音功能暂不可用，用户重新设置（改键）会自动重试。
     const bool hotkeyOk = hotkey_.Apply(config_.hotkeyMods, config_.hotkeyVk);
     DebugLog(L"[app] hotkey apply: %d\n", hotkeyOk ? 1 : 0);
     UpdateTrayTip();
@@ -203,15 +203,10 @@ void App::ShowTrayMenu() {
 }
 
 void App::UpdateTrayTip() {
+    // 需求（2026-09-12 变更）：不在界面标注“未生效”，直接展示用户设置的组合
     std::wstring tip = L"EasyMute —— " + FormatHotkey(config_.hotkeyMods, config_.hotkeyVk);
-    if (!IsHotkeyEffective()) tip += L"（未生效）";
     tip += L"：静音 / 恢复当前应用";
     tray_.SetTip(tip);
-}
-
-bool App::IsHotkeyEffective() const {
-    return hotkey_.Has() && hotkey_.Modifiers() == config_.hotkeyMods &&
-           hotkey_.Key() == config_.hotkeyVk;
 }
 
 void App::ExitApp() {
@@ -221,20 +216,20 @@ void App::ExitApp() {
 }
 
 bool App::TryApplyHotkey(unsigned mods, unsigned vk, bool persist) {
-    // 需求（2026-09-11 变更）：设置快捷键不再因“被占用”拦截用户——
-    // 无论注册是否成功都接受并保存；失败时保留旧键可用，托盘提示标注“未生效”。
+    // 需求（2026-09-11/09-12 变更）：直接接受并保存用户选择，尽力注册；
+    // 不做占用检测、不在界面标注注册结果，失败时静默保留旧键可用。
     const bool registered = hotkey_.Apply(mods, vk);
     config_.hotkeyMods = mods;
     config_.hotkeyVk = vk;
     if (persist) config_.Save();
     UpdateTrayTip();
-    if (!registered) DebugLog(L"[app] hotkey not registered (occupied?), setting kept\n");
+    if (!registered) DebugLog(L"[app] hotkey not registered (silent), setting kept\n");
     return registered;
 }
 
 void App::ApplyDefaultHotkey() {
-    const bool registered = TryApplyHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, true);
-    SettingsDialog::SyncHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, registered);
+    TryApplyHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, true);
+    SettingsDialog::SyncHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey);
 }
 
 void App::ApplyAutoStart(bool enabled) {
