@@ -20,7 +20,10 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
+# 显式声明最低 Windows 版本（Win7+）：WASAPI、QueryFullProcessImageNameW、CompareStringOrdinal、
+# MOD_NOREPEAT 等 API 的声明受 WINVER/_WIN32_WINNT 条件编译保护（需要 >= 0x0600）；
+# 显式定义可避免依赖不同工具链（MSVC / 各版本 MinGW）各自不同的默认值。
+add_compile_definitions(UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX WINVER=0x0601 _WIN32_WINNT=0x0601)
 
 # ---------- 核心库（主程序与自检工具共用） ----------
 add_library(easymute_core STATIC

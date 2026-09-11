@@ -88,6 +88,7 @@
 8. **测试窗口查找**：PowerShell 里 `FindWindowW(class, $null)` 的 `$null` 会封送成空串而非 NULL，查不到窗口；改用 `EnumWindows` 按类名枚举，或把参数声明为 `IntPtr`。
 9. **不要改动静态链接策略**：单文件免安装是产品目标（MinGW 侧 `-static -static-libgcc -static-libstdc++`；MSVC 侧 `/MT`）。
 10. **`selftest <pid>` 会做两次切换（静音→恢复）**：净效果还原；调试优先用只读模式 `list` / `config`。
+11. **编辑器标红但编译通过（两套 MinGW 默认宏不同）**：IntelliSense 曾把 CompareStringOrdinal / QueryFullProcessImageNameW 等标为“未定义标识符”——IntelliSense 解析所用工具链默认 `_WIN32_WINNT` 过低时（如旧 MinGW GCC 8.1 = 0x0502），头文件把 Vista+ API 声明藏在 `#if WINVER >= 0x0600` 守卫里；而构建工具链（WinGet WinLibs GCC 16.1 = 0x0601）正常。解决：**机器相关的 `.vscode/c_cpp_properties.json` 保持本地、不入库**（compilerPath 指向本人构建工具链 + 显式 `WINVER/_WIN32_WINNT=0x0601`；模板见 README「VS Code 编辑器提示」）；CMake 已显式定义这两个宏，构建不再依赖工具链默认值。**教训：含本机绝对路径的编辑器配置不要提交。**
 
 ## 测试技巧
 
@@ -105,4 +106,5 @@
 - **2026-09-12 气泡策略修复**：现象——日常误触快捷键时气泡"一直不断弹出"（无音频会话 / 桌面焦点等未切换场景也在弹，且强制显示、无视设置）。根因——通知策略未区分"是否真正切换静音"。修复——仅切换成功时提示一次 + 300ms 同文本防抖 + 全部非切换场景静默；设置开关更名为"静音/恢复时显示气泡提示"（默认开启）。
 - **2026-09-12 修复「恢复默认假成功」与「按当前快捷键无反应」**：现象1——点“恢复默认”后输入框显示已切到 `Ctrl + Alt + M`，实际未生效（该组合在真机上被其他程序占用，注册返回 err=1409），界面却按“配置值”显示，形成假成功；现象2——录入时按下“当前正在使用的快捷键”，输入框毫无反应。根因——(1) 输入框显示只取配置值，未区分是否注册成功；(2) 全局热键会吞掉按键，录入框收不到 WM_KEYDOWN，只会触发 WM_HOTKEY。结论——显示与提示统一以“实际注册结果”为准（未生效红色标注）；捕获态下 WM_HOTKEY 交由设置窗口完成采集（同一按键直接回显当前快捷键）。经截图 + 日志端到端验证。
 - **2026-09-12 需求变更（第三次：彻底静默）**：用户要求去掉“（未生效）”红色标注、不再做任何占用检测——“就让用户能直接设置”。实现——`HotkeyBox` 删除 `effective` 字段与红色标注分支；`App::UpdateTrayTip` / `IsHotkeyEffective` 移除；`HKM_SETVALUE` 的 lParam 语义废弃（保留未用）；`SettingsDialog::SyncHotkey` 回到 2 参数；`HotkeyManager::Apply` 移除临时 ID 预验证，改为直接注册、失败静默恢复旧键。验证——占用组合（真机 Ctrl+Alt+M，err=1409）下界面普通显示、无任何提示；F8 正常录入注册；捕获态按当前快捷键仍可回显完成采集（截图 + 日志）。
+- **2026-09-12 修复编辑器标红（体验类）**：现象——部分 .cpp 中 QueryFullProcessImageNameW / CompareStringOrdinal 等被编辑器标为未定义，但编译运行正常。根因——IntelliSense 与实际构建使用不同工具链（旧 MinGW GCC 8.1 默认 `_WIN32_WINNT=0x0502` vs WinGet WinLibs GCC 16.1 默认 `0x0601`），宏低于 0x0600 时头文件的 `#if WINVER >= 0x0600` 守卫隐藏声明。结论——本地新增 `.vscode/c_cpp_properties.json`（compilerPath 指向构建工具链 + 显式 WINVER/\_WIN32_WINNT=0x0601）；CMakeLists 同步显式定义这两个宏；验证：IntelliSense 对相关文件 0 错误。后补——该文件含本机绝对路径、曾误入库，经确认对他人不可移植（clone 后路径不存在，会覆盖并弄坏其编辑器体验），已回退为“本地文件 + `.gitignore` 忽略”，并**改写 git 历史**（合并重写相关提交 + 强推）从仓库历史中彻底移除该文件及排查文本中的机器路径；模板写入 README。
 - （后续新经验请在此追加：日期 + 现象 + 根因 + 结论）

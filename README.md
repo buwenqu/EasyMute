@@ -68,6 +68,36 @@ cmake --build build --config Release
 
 > `res\app.ico` 已生成并入库；如需重新生成图标，运行 `.\tools\make_icon.ps1`。
 
+### VS Code 编辑器提示（IntelliSense）
+
+若编辑器把 `QueryFullProcessImageNameW`、`CompareStringOrdinal` 等 **Vista+ API 标为“未定义标识符”**：这是 IntelliSense 所用工具链的 `WINVER` 偏低所致（这些声明受头文件 `#if WINVER >= 0x0600` 保护）；**不影响实际构建**（CMake 已显式定义 `WINVER/_WIN32_WINNT=0x0601`）。
+
+若希望编辑器同样零告警，可**在本地**创建 `.vscode/c_cpp_properties.json`（含机器路径，已加入 .gitignore，请勿提交），模板如下（把 `compilerPath` 换成本机 MinGW 的 `g++.exe`；MSVC 用户可改用 `windows-msvc-x64` 模式并省略该字段）：
+
+```jsonc
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Win32-MinGW",
+      "compilerPath": "C:/path/to/mingw64/bin/g++.exe",
+      "intelliSenseMode": "windows-gcc-x64",
+      "cStandard": "c17",
+      "cppStandard": "c++17",
+      "defines": [
+        "UNICODE",
+        "_UNICODE",
+        "WIN32_LEAN_AND_MEAN",
+        "NOMINMAX",
+        "WINVER=0x0601",
+        "_WIN32_WINNT=0x0601",
+      ],
+      "includePath": ["${workspaceFolder}/src", "${workspaceFolder}/res"],
+    },
+  ],
+}
+```
+
 ### 验证工具（可选）
 
 仓库附带两个控制台小工具，用于验证「进程匹配 → 会话静音」核心链路：
