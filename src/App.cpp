@@ -63,13 +63,11 @@ bool App::Init(HINSTANCE instance) {
     tray_.Add(hwnd_, icon, L"EasyMute");
     UpdateTrayTip();
 
+    // 需求（2026-09-11 变更）：启动注册失败不再弹“被占用”气泡,
+    // 注册状态通过托盘提示（“未生效”）被动呈现。
     const bool hotkeyOk = hotkey_.Apply(config_.hotkeyMods, config_.hotkeyVk);
     DebugLog(L"[app] hotkey apply: %d\n", hotkeyOk ? 1 : 0);
-    if (!hotkeyOk) {
-        Notify(L"快捷键 " + FormatHotkey(config_.hotkeyMods, config_.hotkeyVk) +
-                   L" 注册失败（可能已被其他程序占用），请在设置中更换。",
-               true, true);
-    }
+    UpdateTrayTip();
     return true;
 }
 
@@ -188,8 +186,12 @@ void App::ShowTrayMenu() {
 }
 
 void App::UpdateTrayTip() {
-    tray_.SetTip(L"EasyMute —— " + FormatHotkey(config_.hotkeyMods, config_.hotkeyVk) +
-                 L"：静音 / 恢复当前应用");
+    std::wstring tip = L"EasyMute —— " + FormatHotkey(config_.hotkeyMods, config_.hotkeyVk);
+    const bool active = hotkey_.Has() && hotkey_.Modifiers() == config_.hotkeyMods &&
+                        hotkey_.Key() == config_.hotkeyVk;
+    if (!active) tip += L"（未生效）";
+    tip += L"：静音 / 恢复当前应用";
+    tray_.SetTip(tip);
 }
 
 void App::ExitApp() {
@@ -199,22 +201,20 @@ void App::ExitApp() {
 }
 
 bool App::TryApplyHotkey(unsigned mods, unsigned vk, bool persist) {
-    if (!hotkey_.Apply(mods, vk)) return false;
+    // 需求（2026-09-11 变更）：设置快捷键不再因“被占用”拦截用户——
+    // 无论注册是否成功都接受并保存；失败时保留旧键可用，托盘提示标注“未生效”。
+    const bool registered = hotkey_.Apply(mods, vk);
     config_.hotkeyMods = mods;
     config_.hotkeyVk = vk;
     if (persist) config_.Save();
     UpdateTrayTip();
-    return true;
+    if (!registered) DebugLog(L"[app] hotkey not registered (occupied?), setting kept\n");
+    return registered;
 }
 
 void App::ApplyDefaultHotkey() {
-    if (TryApplyHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, true)) {
-        SettingsDialog::SyncHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey);
-    } else {
-        Notify(L"默认快捷键 " + FormatHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey) +
-                   L" 注册失败（可能被占用）",
-               true, true);
-    }
+    TryApplyHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, true);
+    SettingsDialog::SyncHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey);
 }
 
 void App::ApplyAutoStart(bool enabled) {

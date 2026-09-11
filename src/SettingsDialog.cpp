@@ -79,12 +79,10 @@ INT_PTR CALLBACK DialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
                         const LRESULT packed = SendDlgItemMessageW(dlg, IDC_HOTKEYBOX, HKM_GETVALUE, 0, 0);
                         const unsigned mods = static_cast<unsigned>((packed >> 16) & 0xFFFF);
                         const unsigned vk = static_cast<unsigned>(packed & 0xFFFF);
-                        if (g_app->TryApplyHotkey(mods, vk, true)) {
-                            SendDlgItemMessageW(dlg, IDC_HOTKEYBOX, HKM_SETVALUE,
-                                                static_cast<WPARAM>((mods << 16) | vk), 0);
-                        } else {
-                            SendDlgItemMessageW(dlg, IDC_HOTKEYBOX, HKM_REJECT, 0, 0);
-                        }
+                        // 需求（2026-09-11 变更）：直接接受任意合法组合，不因“被占用”拦截
+                        g_app->TryApplyHotkey(mods, vk, true);
+                        SendDlgItemMessageW(dlg, IDC_HOTKEYBOX, HKM_SETVALUE,
+                                            static_cast<WPARAM>((mods << 16) | vk), 0);
                     }
                     return TRUE;
                 case IDC_BTN_CLOSE:

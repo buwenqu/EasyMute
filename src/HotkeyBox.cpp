@@ -9,8 +9,11 @@ namespace {
 constexpr wchar_t kBoxClass[] = L"EasyMuteHotkeyBox";
 
 struct BoxData {
-    unsigned mods = 0;
+    unsigned mods = 0;  // 当前已生效的快捷键
     unsigned vk = 0;
+    unsigned pendingMods = 0;  // 刚捕获、等待父窗口确认的候选组合
+    unsigned pendingVk = 0;
+    bool hasPending = false;
     bool capturing = false;
     HFONT font = nullptr;
     std::wstring hint;  // 录入过程中的提示文字（占位 / 错误）
@@ -39,6 +42,7 @@ void BeginCapture(HWND hwnd, BoxData* data) {
 
 void EndCapture(HWND hwnd, BoxData* data) {
     data->capturing = false;
+    data->hasPending = false;  // 放弃未确认的候选值
     data->hint.clear();
     data->hintError = false;
     InvalidateRect(hwnd, nullptr, TRUE);
@@ -139,6 +143,7 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             }
             if (vk == VK_BACK) {
                 data->capturing = true;
+                data->hasPending = false;
                 data->hint = L"请按下新快捷键…";
                 data->hintError = false;
                 InvalidateRect(hwnd, nullptr, TRUE);
@@ -152,7 +157,12 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
                 InvalidateRect(hwnd, nullptr, TRUE);
                 return 0;
             }
-            // 通知父窗口尝试注册
+            // 关键：必须先把候选组合存入控件，再通知父窗口；
+            // 父窗口通过 HKM_GETVALUE 读到的就是本次捕获的新组合。
+            // （曾因漏掉这一步导致"改键永远提示被占用"）
+            data->pendingMods = mods;
+            data->pendingVk = vk;
+            data->hasPending = true;
             SendMessageW(GetParent(hwnd), WM_COMMAND,
                          MAKEWPARAM(static_cast<WORD>(GetDlgCtrlID(hwnd)), HKN_CHANGED),
                          reinterpret_cast<LPARAM>(hwnd));
@@ -162,6 +172,7 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!data) return 0;
             data->mods = (static_cast<unsigned>(wp) >> 16) & 0xFFFFu;
             data->vk = static_cast<unsigned>(wp) & 0xFFFFu;
+            data->hasPending = false;
             data->capturing = false;
             data->hint.clear();
             data->hintError = false;
@@ -170,7 +181,9 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
         }
         case HKM_GETVALUE: {
             if (!data) return 0;
-            return static_cast<LRESULT>((data->mods << 16) | (data->vk & 0xFFFFu));
+            const unsigned mods = data->hasPending ? data->pendingMods : data->mods;
+            const unsigned vk = data->hasPending ? data->pendingVk : data->vk;
+            return static_cast<LRESULT>((mods << 16) | (vk & 0xFFFFu));
         }
         case HKM_REJECT: {
             if (!data) return 0;
