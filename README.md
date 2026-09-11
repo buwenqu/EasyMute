@@ -149,7 +149,7 @@ EasyMute/
 
 - 设环境变量 `EASYMUTE_DEBUG=1` 后运行，调试日志写入 `%TEMP%\easymute_debug.log`；
 - `tools/` 下的 `easymute_selftest.exe`（`list` / `<pid>`）与 `easymute_soundstub.exe` 可用于验证核心链路；
-- 快捷键无效：组合可能被其他软件占用——此时托盘提示会显示"（未生效）"，在设置窗口换一个组合即可。
+- 快捷键无效：组合可能被其他软件占用——此时托盘提示会显示"（未生效）"，在设置窗口换一个组合即可；录入时直接按“当前正在使用的快捷键”不会没反应，会正常回显并结束采集。
 
 ## �🗺 Roadmap
 

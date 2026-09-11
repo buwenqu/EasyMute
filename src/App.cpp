@@ -98,6 +98,11 @@ LRESULT CALLBACK App::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
 LRESULT App::HandleMessage(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     if (msg == WM_HOTKEY) {
         DebugLog(L"[app] WM_HOTKEY (id=%u)\n", static_cast<unsigned>(wp));
+        // 录入框正在等待输入时按下“当前快捷键”：该按键会被系统热键机制拦截、控件收不到，
+        // 这里把它解释为“设置为当前快捷键”并完成录入（需求 2026-09-12）。
+        if (SettingsDialog::TryCompleteCaptureWithCurrentHotkey(hotkey_.Modifiers(), hotkey_.Key())) {
+            return 0;
+        }
         ToggleForegroundAppMute();
         return 0;
     }
@@ -199,11 +204,14 @@ void App::ShowTrayMenu() {
 
 void App::UpdateTrayTip() {
     std::wstring tip = L"EasyMute —— " + FormatHotkey(config_.hotkeyMods, config_.hotkeyVk);
-    const bool active = hotkey_.Has() && hotkey_.Modifiers() == config_.hotkeyMods &&
-                        hotkey_.Key() == config_.hotkeyVk;
-    if (!active) tip += L"（未生效）";
+    if (!IsHotkeyEffective()) tip += L"（未生效）";
     tip += L"：静音 / 恢复当前应用";
     tray_.SetTip(tip);
+}
+
+bool App::IsHotkeyEffective() const {
+    return hotkey_.Has() && hotkey_.Modifiers() == config_.hotkeyMods &&
+           hotkey_.Key() == config_.hotkeyVk;
 }
 
 void App::ExitApp() {
@@ -225,8 +233,8 @@ bool App::TryApplyHotkey(unsigned mods, unsigned vk, bool persist) {
 }
 
 void App::ApplyDefaultHotkey() {
-    TryApplyHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, true);
-    SettingsDialog::SyncHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey);
+    const bool registered = TryApplyHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, true);
+    SettingsDialog::SyncHotkey(kDefaultHotkeyMods, kDefaultHotkeyKey, registered);
 }
 
 void App::ApplyAutoStart(bool enabled) {

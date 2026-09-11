@@ -23,6 +23,9 @@ public:
     HWND MainWnd() const { return hwnd_; }
     const Config& GetConfig() const { return config_; }
 
+    // 当前配置的快捷键是否已实际注册生效（否则托盘/录入框会标注“未生效”）
+    bool IsHotkeyEffective() const;
+
     // ---- 供设置窗口调用 ----
     bool TryApplyHotkey(unsigned mods, unsigned vk, bool persist);
     void ApplyDefaultHotkey();

@@ -9,11 +9,12 @@ namespace {
 constexpr wchar_t kBoxClass[] = L"EasyMuteHotkeyBox";
 
 struct BoxData {
-    unsigned mods = 0;  // 当前已生效的快捷键
+    unsigned mods = 0;  // 当前显示的快捷键
     unsigned vk = 0;
     unsigned pendingMods = 0;  // 刚捕获、等待父窗口确认的候选组合
     unsigned pendingVk = 0;
     bool hasPending = false;
+    bool effective = true;  // 显示的组合是否已实际注册生效（false 时标注“（未生效）”）
     bool capturing = false;
     HFONT font = nullptr;
     std::wstring hint;  // 录入过程中的提示文字（占位 / 错误）
@@ -71,6 +72,11 @@ void PaintBox(HWND hwnd, BoxData* data) {
         text = data->hint.empty() ? L"请按下新快捷键…" : data->hint;
     } else {
         text = FormatHotkey(data->mods, data->vk);
+        if (!data->effective) {
+            // 组合未能实际注册（被其他程序占用等）：如实标注，避免“假成功”
+            text += L"（未生效）";
+            color = RGB(0xD9, 0x30, 0x25);
+        }
     }
 
     HFONT oldFont = nullptr;
@@ -80,7 +86,8 @@ void PaintBox(HWND hwnd, BoxData* data) {
     RECT textRect = rc;
     textRect.left += 6;
     textRect.right -= 6;
-    DrawTextW(dc, text.c_str(), -1, &textRect, DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_NOPREFIX);
+    DrawTextW(dc, text.c_str(), -1, &textRect,
+              DT_SINGLELINE | DT_VCENTER | DT_LEFT | DT_NOPREFIX | DT_END_ELLIPSIS);
     if (oldFont) SelectObject(dc, oldFont);
 
     EndPaint(hwnd, &ps);
@@ -172,6 +179,7 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             if (!data) return 0;
             data->mods = (static_cast<unsigned>(wp) >> 16) & 0xFFFFu;
             data->vk = static_cast<unsigned>(wp) & 0xFFFFu;
+            data->effective = lp != 0;
             data->hasPending = false;
             data->capturing = false;
             data->hint.clear();
@@ -184,6 +192,10 @@ LRESULT CALLBACK BoxProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
             const unsigned mods = data->hasPending ? data->pendingMods : data->mods;
             const unsigned vk = data->hasPending ? data->pendingVk : data->vk;
             return static_cast<LRESULT>((mods << 16) | (vk & 0xFFFFu));
+        }
+        case HKM_ISCAPTURING: {
+            if (!data) return 0;
+            return data->capturing ? 1 : 0;
         }
         case HKM_REJECT: {
             if (!data) return 0;

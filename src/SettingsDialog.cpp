@@ -2,6 +2,7 @@
 
 #include "App.h"
 #include "Config.h"
+#include "DebugLog.h"
 #include "HotkeyBox.h"
 #include "resource.h"
 
@@ -35,7 +36,8 @@ void RefreshControls(HWND dlg) {
     CheckDlgButton(dlg, IDC_CHK_AUTOSTART, config.autoStart ? BST_CHECKED : BST_UNCHECKED);
     CheckDlgButton(dlg, IDC_CHK_NOTIFY, config.showNotification ? BST_CHECKED : BST_UNCHECKED);
     SendDlgItemMessageW(dlg, IDC_HOTKEYBOX, HKM_SETVALUE,
-                        static_cast<WPARAM>((config.hotkeyMods << 16) | (config.hotkeyVk & 0xFFFFu)), 0);
+                        static_cast<WPARAM>((config.hotkeyMods << 16) | (config.hotkeyVk & 0xFFFFu)),
+                        static_cast<LPARAM>(g_app->IsHotkeyEffective() ? 1 : 0));
 }
 
 INT_PTR CALLBACK DialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
@@ -80,9 +82,10 @@ INT_PTR CALLBACK DialogProc(HWND dlg, UINT msg, WPARAM wp, LPARAM lp) {
                         const unsigned mods = static_cast<unsigned>((packed >> 16) & 0xFFFF);
                         const unsigned vk = static_cast<unsigned>(packed & 0xFFFF);
                         // 需求（2026-09-11 变更）：直接接受任意合法组合，不因“被占用”拦截
-                        g_app->TryApplyHotkey(mods, vk, true);
+                        const bool registered = g_app->TryApplyHotkey(mods, vk, true);
                         SendDlgItemMessageW(dlg, IDC_HOTKEYBOX, HKM_SETVALUE,
-                                            static_cast<WPARAM>((mods << 16) | vk), 0);
+                                            static_cast<WPARAM>((mods << 16) | vk),
+                                            static_cast<LPARAM>(registered ? 1 : 0));
                     }
                     return TRUE;
                 case IDC_BTN_CLOSE:
@@ -135,8 +138,22 @@ void SettingsDialog::Show(HINSTANCE instance, App* app) {
 
 HWND SettingsDialog::Hwnd() { return g_hwnd; }
 
-void SettingsDialog::SyncHotkey(unsigned mods, unsigned vk) {
+void SettingsDialog::SyncHotkey(unsigned mods, unsigned vk, bool effective) {
     if (!g_hwnd) return;
     SendDlgItemMessageW(g_hwnd, IDC_HOTKEYBOX, HKM_SETVALUE,
-                        static_cast<WPARAM>((mods << 16) | (vk & 0xFFFFu)), 0);
+                        static_cast<WPARAM>((mods << 16) | (vk & 0xFFFFu)),
+                        static_cast<LPARAM>(effective ? 1 : 0));
+}
+
+bool SettingsDialog::TryCompleteCaptureWithCurrentHotkey(unsigned mods, unsigned vk) {
+    if (!g_hwnd || !g_app) return false;
+    const HWND box = GetDlgItem(g_hwnd, IDC_HOTKEYBOX);
+    if (box == nullptr) return false;
+    if (SendMessageW(box, HKM_ISCAPTURING, 0, 0) == 0) return false;
+
+    DebugLog(L"[app] capture completed with current hotkey (mods=%u vk=%u)\n", mods, vk);
+    const bool registered = g_app->TryApplyHotkey(mods, vk, true);
+    SendMessageW(box, HKM_SETVALUE, static_cast<WPARAM>((mods << 16) | (vk & 0xFFFFu)),
+                 static_cast<LPARAM>(registered ? 1 : 0));
+    return true;
 }
