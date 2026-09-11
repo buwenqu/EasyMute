@@ -28,7 +28,7 @@
 
 ## 🚀 快速开始
 
-1. 获取 `EasyMute.exe`（自行构建或从 Releases 下载）；
+1. 获取 `EasyMute.exe`（[Releases 下载](https://github.com/buwenqu/EasyMute/releases/latest) 或自行构建）；
 2. 双击运行——程序静默驻留系统托盘（默认在右下角折叠区）；
 3. 在任意应用窗口按下 `Ctrl + Alt + M` 即可静音 / 恢复该应用的音量。
 
