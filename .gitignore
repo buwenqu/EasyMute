@@ -1,0 +1,36 @@
+# ---- 构建产物 ----
+/build/
+/out/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+*.obj
+*.o
+*.pch
+*.aps
+*.pdb
+*.ilk
+*.exp
+*.log
+
+# ---- CMake ----
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CMakeUserPresets.json
+compile_commands.json
+
+# ---- Visual Studio / VS Code ----
+.vs/
+.vscode/
+*.user
+*.suo
+*.VC.db
+*.vcxproj
+*.vcxproj.filters
+
+# ---- 杂项 ----
+Thumbs.db
+Desktop.ini
+*.tmp
